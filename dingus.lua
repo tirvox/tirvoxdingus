@@ -202,7 +202,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ================================================
--- Walk Speed (исправленный, гарантированно работает)
+-- Walk Speed
 -- ================================================
 local targetSpeed = 16
 local walkConnection
@@ -234,7 +234,7 @@ end)
 
 Tabs.Main:AddSlider("WalkSpeed", {
     Title = "Walk Speed",
-    Description = "Работает безотказно",
+    Description = "Постоянная скорость",
     Default = 16,
     Min = 16,
     Max = 200,
@@ -252,7 +252,7 @@ end
 startWalkLoop()
 
 -- ================================================
--- Instant Tasks (0.5 Hold, лёгкий)
+-- Instant Tasks (0.5 Hold)
 -- ================================================
 local instantEnabled = false
 local instantThread
@@ -304,55 +304,138 @@ Tabs.Main:AddToggle("InstantTasks", {
 end)
 
 -- ================================================
--- Invisible (клиент‑сайд, делает персонажа прозрачным)
+-- Server Hide (Desync Mode)
 -- ================================================
-local invisibleEnabled = false
+local desyncEnabled = false
+local fakeCharacter = nil
+local desyncBodyPos
 
-local function setInvisible(character, state)
-    -- Делаем все части персонажа прозрачными/видимыми
-    for _, part in ipairs(character:GetDescendants()) do
+local function createFakeCharacter(realChar)
+    -- Клонируем модель персонажа
+    local clone = realChar:Clone()
+    clone.Parent = Workspace
+    clone.Name = "FakeChar"
+    -- Делаем оригинал невидимым для клиента
+    for _, part in ipairs(realChar:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.Transparency = state and 1 or 0
+            part.Transparency = 1
         end
     end
-    -- Скрываем или показываем имя над головой (если есть)
-    local humanoid = character:FindFirstChild("Humanoid")
+    local humanoid = realChar:FindFirstChild("Humanoid")
     if humanoid then
-        humanoid.DisplayDistanceType = state and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Viewer
+        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
     end
-end
+    -- Закрепляем реальный HumanoidRootPart под картой
+    local root = getRoot(realChar)
+    if root then
+        root.Anchored = true
+        root.CFrame = root.CFrame - Vector3.new(0, 50, 0)
+    end
+    -- Подготавливаем копию для управления
+    clone.PrimaryPart = clone:FindFirstChild("HumanoidRootPart")
+    if clone.PrimaryPart then
+        clone.PrimaryPart.Anchored = false
+        clone.PrimaryPart.CanCollide = true
+    end
+    -- Перемещаем копию на место реального персонажа
+    clone:SetPrimaryPartCFrame(realChar:GetPrimaryPartCFrame() + Vector3.new(0, 50, 0))
+    -- Привязываем камеру к копии
+    Camera.CameraSubject = clone:FindFirstChild("Humanoid") or clone.PrimaryPart
+    -- Управление: перенаправляем движения на копию
+    local cloneHumanoid = clone:FindFirstChild("Humanoid")
+    if cloneHumanoid then
+        cloneHumanoid.WalkSpeed = targetSpeed
+        cloneHumanoid.JumpPower = humanoid and humanoid.JumpPower or 50
+    end
+    -- Заставляем реального персонажа следовать за копией на расстоянии 50 вниз
+    desyncBodyPos = Instance.new("BodyPosition")
+    desyncBodyPos.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    desyncBodyPos.P = 1e6
+    desyncBodyPos.Position = root.CFrame.Position
+    desyncBodyPos.Parent = root
 
-local function enableInvisible()
-    invisibleEnabled = true
-    if LocalPlayer.Character then
-        setInvisible(LocalPlayer.Character, true)
-    end
-    LocalPlayer.CharacterAdded:Connect(function(character)
-        if invisibleEnabled then
-            setInvisible(character, true)
+    -- Синхронизируем позицию реала с копией по X и Z, но Y на -50
+    RunService.RenderStepped:Connect(function()
+        if not desyncEnabled then return end
+        local cloneRoot = clone:FindFirstChild("HumanoidRootPart")
+        local realRoot = getRoot(realChar)
+        if cloneRoot and realRoot and desyncBodyPos then
+            local newPos = cloneRoot.Position - Vector3.new(0, 50, 0)
+            desyncBodyPos.Position = newPos
         end
     end)
+
+    fakeCharacter = clone
+    return clone
 end
 
-local function disableInvisible()
-    invisibleEnabled = false
-    if LocalPlayer.Character then
-        setInvisible(LocalPlayer.Character, false)
+local function removeFakeCharacter()
+    if fakeCharacter then
+        fakeCharacter:Destroy()
+        fakeCharacter = nil
+    end
+    if desyncBodyPos then
+        desyncBodyPos:Destroy()
+        desyncBodyPos = nil
+    end
+    -- Возвращаем реального персонажа наверх и делаем видимым
+    local realChar = LocalPlayer.Character
+    if realChar then
+        for _, part in ipairs(realChar:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Transparency = 0
+            end
+        end
+        local hum = realChar:FindFirstChild("Humanoid")
+        if hum then
+            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
+        end
+        local root = getRoot(realChar)
+        if root then
+            root.Anchored = false
+            root.CFrame = fakeCharacter and fakeCharacter:GetPrimaryPartCFrame() or root.CFrame + Vector3.new(0, 50, 0)
+        end
+        Camera.CameraSubject = realChar:FindFirstChild("Humanoid") or realChar.PrimaryPart
     end
 end
 
-Tabs.Main:AddToggle("Invisible", {
-    Title = "Invisible (Client‑side)",
+local function startDesync()
+    if desyncEnabled then return end
+    desyncEnabled = true
+    local realChar = LocalPlayer.Character
+    if not realChar then return end
+    createFakeCharacter(realChar)
+end
+
+local function stopDesync()
+    desyncEnabled = false
+    removeFakeCharacter()
+end
+
+Tabs.Main:AddToggle("ServerHide", {
+    Title = "Server Hide (Desync)",
     Default = false
 }):OnChanged(function()
-    if Options.Invisible.Value then
-        enableInvisible()
+    if Options.ServerHide.Value then
+        startDesync()
     else
-        disableInvisible()
+        stopDesync()
     end
 end)
 
--- Если персонаж уже есть – ничего не делаем, ждём включения тогла.
+-- Обработка возрождения
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if desyncEnabled then
+        stopDesync()
+        task.wait(0.3)
+        startDesync()
+    end
+end)
+
+-- ================================================
+-- Invisible (клиентская невидимость) оставим как есть
+-- ================================================
+-- (можно удалить или оставить на своё усмотрение, но ServerHide уже скрывает вас от сервера)
 
 -- ================================================
 -- Менеджеры сохранения / интерфейса
@@ -370,8 +453,8 @@ Window:SelectTab(1)
 
 Fluent:Notify({
     Title = "TirvoxHub",
-    Content = "Готово! Все функции загружены.",
-    Duration = 6
+    Content = "Все функции загружены. Server Hide экспериментальный!",
+    Duration = 8
 })
 
 SaveManager:LoadAutoloadConfig()
