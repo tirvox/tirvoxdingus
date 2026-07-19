@@ -304,6 +304,57 @@ Tabs.Main:AddToggle("InstantTasks", {
 end)
 
 -- ================================================
+-- Invisible (клиент‑сайд, делает персонажа прозрачным)
+-- ================================================
+local invisibleEnabled = false
+
+local function setInvisible(character, state)
+    -- Делаем все части персонажа прозрачными/видимыми
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Transparency = state and 1 or 0
+        end
+    end
+    -- Скрываем или показываем имя над головой (если есть)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.DisplayDistanceType = state and Enum.HumanoidDisplayDistanceType.None or Enum.HumanoidDisplayDistanceType.Viewer
+    end
+end
+
+local function enableInvisible()
+    invisibleEnabled = true
+    if LocalPlayer.Character then
+        setInvisible(LocalPlayer.Character, true)
+    end
+    LocalPlayer.CharacterAdded:Connect(function(character)
+        if invisibleEnabled then
+            setInvisible(character, true)
+        end
+    end)
+end
+
+local function disableInvisible()
+    invisibleEnabled = false
+    if LocalPlayer.Character then
+        setInvisible(LocalPlayer.Character, false)
+    end
+end
+
+Tabs.Main:AddToggle("Invisible", {
+    Title = "Invisible (Client‑side)",
+    Default = false
+}):OnChanged(function()
+    if Options.Invisible.Value then
+        enableInvisible()
+    else
+        disableInvisible()
+    end
+end)
+
+-- Если персонаж уже есть – ничего не делаем, ждём включения тогла.
+
+-- ================================================
 -- Менеджеры сохранения / интерфейса
 -- ================================================
 SaveManager:SetLibrary(Fluent)
@@ -319,7 +370,7 @@ Window:SelectTab(1)
 
 Fluent:Notify({
     Title = "TirvoxHub",
-    Content = "Готово! Скорость работает идеально.",
+    Content = "Готово! Все функции загружены.",
     Duration = 6
 })
 
