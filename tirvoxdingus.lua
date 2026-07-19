@@ -1,6 +1,6 @@
 -- [ ЗАГРУЗЧИК САТОШИ v1.1 - С ЗАЩИТОЙ ] --
 
-local encrypted_data = "35.6.8.e.b.z.l.y.c.f.g.2a.16.n.m.u.2x.1k.x.1c.1b.1u.u.1e.2z.2x.t.1n.1f.1o.14.36.2u.2u.1f.1f.1e.30.1g.16.1r.1c.1m.1i.24.1y.1i.24.22.1l.1j.2b.1o.1i.1x.3i.1u.1q.22.3h.23.1r.2f.2l.26.2g.48.2o.20.2n.2j.21.23.2e.26.29.2a.2x.2g.47.2h.2h.2o.2o.4q.2j.2q.2i.2t.4b.2x.2l.39.3f.30.3a.3j.2r.2v.34.3g.3n.57.30.3s.38.4w.4z.5c.4u.4y.5t" 
+local encrypted_data = "35.6.8.e.b.z.l.y.c.f.g.2a.16.n.m.u.2x.1k.x.1c.1b.1u.u.1e.2z.2x.t.1n.1f.1o.14.36.2u.2u.1f.1f.1e.30.1g.16.1r.1c.1m.1i.24.1y.1i.24.22.1l.1j.2b.1o.1i.1x.3i.1u.1q.22.3h.23.1r.2f.2l.26.2g.48.2o.20.2n.2j.21.23.2e.26.29.2a.2x.2g.47.2g.2k.2m.2c.4q.2q.2i.2l.2m.39.2s.4i.2r.3g.2q.4p.50.4j.4l.4m.5p" 
 local secret_key = "zhjkbn"
 
 local function decrypt(data, key)
